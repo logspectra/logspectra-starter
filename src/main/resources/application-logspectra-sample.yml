@@ -1,0 +1,40 @@
+# ============================================================
+# LogSpectra Starter — Reference application.yml
+# ============================================================
+# Add this starter to your pom.xml, then configure below.
+# ALL properties have sensible defaults; only service-name
+# and kafka section are typically required.
+# ============================================================
+
+logspectra:
+
+  # Master switch. Set to false to completely disable the starter.
+  enabled: true
+
+  # Logical name injected into every log record as the "service" field.
+  # Should match your service's identity in your service registry / APM tool.
+  service-name: user-service
+
+  kafka:
+    # Comma-separated list of Kafka broker addresses.
+    bootstrap-servers: localhost:9092
+
+    # Topic to which all structured log records are published.
+    topic: logs-topic
+
+    # Optional tuning (shown with defaults — omit if defaults are acceptable)
+    # max-block-ms: 2000    # ms to wait for buffer before giving up
+    # acks: "1"             # 0 = fire-and-forget | 1 = leader ack | all = full ISR
+    # retries: 3            # producer retry count on transient failures
+
+# ============================================================
+# Standard Spring / logging configuration
+# ============================================================
+spring:
+  application:
+    name: user-service
+
+logging:
+  level:
+    root: INFO
+    com.yourcompany: DEBUG

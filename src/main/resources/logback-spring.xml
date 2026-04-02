@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    logback-spring.xml — LogSpectra default Logback configuration
+    ============================================================
+    This file is packaged inside the starter JAR and becomes the
+    effective Logback configuration for any consumer that does NOT
+    provide their own logback-spring.xml / logback.xml.
+
+    It sets up:
+      1. CONSOLE appender — JSON via logstash-logback-encoder (always active)
+      2. KAFKA  appender  — JSON to Kafka (active when logspectra.enabled=true)
+                            Programmatic setup in KafkaAppenderConfig.java adds
+                            this appender at runtime; the XML section below is
+                            the declarative fallback / reference configuration.
+
+    Spring Boot property placeholders (springProperty) are resolved from
+    application.yml at startup time.
+-->
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!-- ================================================================ -->
+    <!-- Pull values from Spring Environment (application.yml / env vars) -->
+    <!-- ================================================================ -->
+    <springProperty scope="context" name="SERVICE_NAME"        source="logspectra.service-name"          defaultValue="unknown-service"/>
+    <springProperty scope="context" name="KAFKA_BROKERS"       source="logspectra.kafka.bootstrap-servers" defaultValue="localhost:9092"/>
+    <springProperty scope="context" name="KAFKA_TOPIC"         source="logspectra.kafka.topic"            defaultValue="application-logs"/>
+    <springProperty scope="context" name="LOGSPECTRA_ENABLED"  source="logspectra.enabled"               defaultValue="true"/>
+    <springProperty scope="context" name="LOG_LEVEL_ROOT"      source="logging.level.root"               defaultValue="INFO"/>
+
+    <!-- ================================================================ -->
+    <!-- Shared Logstash JSON Encoder                                      -->
+    <!-- ================================================================ -->
+    <!--
+        Every appender reuses this encoder definition (logstash does not
+        support shared encoder instances, so each appender instantiates its
+        own — this comment block documents what each encoder includes).
+
+        Emitted JSON fields per log record:
+          @timestamp  — ISO-8601 UTC timestamp
+          @version    — logstash schema version ("1")
+          level       — log level (INFO, ERROR, …)
+          logger_name — fully-qualified class name of the logger
+          thread_name — thread emitting the log
+          message     — log message
+          stack_trace — present only when an exception is logged
+          service     — from MDC (populated by LoggingFilter)
+          endpoint    — from MDC
+          method      — from MDC
+          traceId     — from MDC
+    -->
+
+    <!-- ================================================================ -->
+    <!-- 1. CONSOLE Appender — structured JSON to stdout                  -->
+    <!-- ================================================================ -->
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Service name as a static custom field so it appears even  -->
+            <!-- before the first request populates the MDC.               -->
+            <customFields>{"service":"${SERVICE_NAME}"}</customFields>
+            <!-- MDC fields are included automatically by LogstashEncoder. -->
+            <!-- The list below makes the intent explicit for reviewers.   -->
+            <includeMdcKeyName>service</includeMdcKeyName>
+            <includeMdcKeyName>endpoint</includeMdcKeyName>
+            <includeMdcKeyName>method</includeMdcKeyName>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <!-- Pretty-print in local dev; remove in production. -->
+            <!-- <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/> -->
+        </encoder>
+    </appender>
+
+    <!-- ================================================================ -->
+    <!-- 2. KAFKA Appender — declarative reference                        -->
+    <!--    (KafkaAppenderConfig.java attaches this programmatically so   -->
+    <!--     the appender is registered even if the consumer supplies      -->
+    <!--     their own logback-spring.xml without a KAFKA section.)       -->
+    <!-- ================================================================ -->
+    <if condition='property("LOGSPECTRA_ENABLED").equals("true")'>
+        <then>
+            <appender name="KAFKA_JSON" class="com.github.danielwegener.logback.kafka.KafkaAppender">
+                <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                    <customFields>{"service":"${SERVICE_NAME}"}</customFields>
+                    <includeMdcKeyName>service</includeMdcKeyName>
+                    <includeMdcKeyName>endpoint</includeMdcKeyName>
+                    <includeMdcKeyName>method</includeMdcKeyName>
+                    <includeMdcKeyName>traceId</includeMdcKeyName>
+                </encoder>
+
+                <topic>${KAFKA_TOPIC}</topic>
+
+                <!-- Round-robin distributes records evenly across partitions -->
+                <keyingStrategy class="com.github.danielwegener.logback.kafka.keying.RoundRobinKeyingStrategy"/>
+
+                <!-- Async delivery — Kafka I/O never blocks the caller thread -->
+                <deliveryStrategy class="com.github.danielwegener.logback.kafka.delivery.AsynchronousDeliveryStrategy"/>
+
+                <!-- Kafka producer properties -->
+                <producerConfig>bootstrap.servers=${KAFKA_BROKERS}</producerConfig>
+                <producerConfig>acks=1</producerConfig>
+                <producerConfig>retries=3</producerConfig>
+                <producerConfig>max.block.ms=2000</producerConfig>
+                <producerConfig>key.serializer=org.apache.kafka.common.serialization.ByteArraySerializer</producerConfig>
+                <producerConfig>value.serializer=org.apache.kafka.common.serialization.ByteArraySerializer</producerConfig>
+                <producerConfig>client.id=logspectra-${SERVICE_NAME}</producerConfig>
+
+                <!--
+                    Fallback: when Kafka is unreachable, log to stderr so that
+                    no records are silently dropped during connectivity issues.
+                -->
+                <appender-ref ref="CONSOLE_JSON"/>
+            </appender>
+
+            <!-- Async wrapper — prevents Kafka back-pressure from stalling threads -->
+            <appender name="ASYNC_KAFKA" class="ch.qos.logback.classic.AsyncAppender">
+                <queueSize>512</queueSize>
+                <discardingThreshold>20</discardingThreshold>
+                <neverBlock>false</neverBlock>
+                <appender-ref ref="KAFKA_JSON"/>
+            </appender>
+        </then>
+    </if>
+
+    <!-- ================================================================ -->
+    <!-- Logger Configuration                                              -->
+    <!-- ================================================================ -->
+
+    <!-- Reduce noise from Kafka client internals -->
+    <logger name="org.apache.kafka" level="WARN"/>
+
+    <!-- Reduce noise from Spring framework internals -->
+    <logger name="org.springframework" level="WARN"/>
+
+    <!-- LogSpectra internals at DEBUG to aid troubleshooting             -->
+    <logger name="com.logspectra" level="DEBUG"/>
+
+    <!-- ================================================================ -->
+    <!-- Root Logger                                                        -->
+    <!-- ================================================================ -->
+    <root level="${LOG_LEVEL_ROOT}">
+        <appender-ref ref="CONSOLE_JSON"/>
+        <if condition='property("LOGSPECTRA_ENABLED").equals("true")'>
+            <then>
+                <appender-ref ref="ASYNC_KAFKA"/>
+            </then>
+        </if>
+    </root>
+
+</configuration>
