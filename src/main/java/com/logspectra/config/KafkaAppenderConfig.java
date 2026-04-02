@@ -3,9 +3,10 @@ package com.logspectra.config;
 import ch.qos.logback.classic.AsyncAppender;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.github.danielwegener.logback.kafka.KafkaAppender;
 import com.github.danielwegener.logback.kafka.delivery.AsynchronousDeliveryStrategy;
-import com.github.danielwegener.logback.kafka.keying.RoundRobinKeyingStrategy;
+import com.github.danielwegener.logback.kafka.keying.KeyingStrategy;
 import com.logspectra.properties.LogSpectraProperties;
 import net.logstash.logback.encoder.LogstashEncoder;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Configuration;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Programmatically configures and attaches a Logback {@link KafkaAppender}
@@ -60,7 +62,7 @@ public class KafkaAppenderConfig {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
 
         try {
-            KafkaAppender<byte[]> kafkaAppender = buildKafkaAppender(context);
+            KafkaAppender<ILoggingEvent> kafkaAppender = buildKafkaAppender(context);
             kafkaAppender.start();
 
             asyncAppender = buildAsyncWrapper(context, kafkaAppender);
@@ -89,28 +91,18 @@ public class KafkaAppenderConfig {
             log.info("[LogSpectra] Kafka appender detached.");
         }
     }
-
-    // ------------------------------------------------------------------ //
-    //  Builders                                                           //
-    // ------------------------------------------------------------------ //
-
-    @SuppressWarnings("unchecked")
-    private KafkaAppender<byte[]> buildKafkaAppender(LoggerContext context) {
-        KafkaAppender<byte[]> appender = new KafkaAppender<>();
+    private KafkaAppender<ILoggingEvent> buildKafkaAppender(LoggerContext context) {
+        KafkaAppender<ILoggingEvent> appender = new KafkaAppender<>();
         appender.setContext(context);
         appender.setName("KAFKA");
         appender.setTopic(properties.getKafka().getTopic());
 
         // Keying strategy — round-robin distributes load evenly across partitions
-        RoundRobinKeyingStrategy keyingStrategy = new RoundRobinKeyingStrategy();
-        keyingStrategy.setContext(context);
-        keyingStrategy.start();
+        KeyingStrategy<ILoggingEvent> keyingStrategy = new RoundRobinKeyingStrategy();
         appender.setKeyingStrategy(keyingStrategy);
 
         // Delivery strategy — async so Kafka backpressure doesn't block callers
         AsynchronousDeliveryStrategy deliveryStrategy = new AsynchronousDeliveryStrategy();
-        deliveryStrategy.setContext(context);
-        deliveryStrategy.start();
         appender.setDeliveryStrategy(deliveryStrategy);
 
         // Logstash JSON encoder — emits all MDC fields automatically
@@ -147,13 +139,12 @@ public class KafkaAppenderConfig {
                 MdcKeys.ENDPOINT,
                 MdcKeys.METHOD,
                 MdcKeys.TRACE_ID));
-        encoder.setCharset(StandardCharsets.UTF_8);
         encoder.start();
         return encoder;
     }
 
     private AsyncAppender buildAsyncWrapper(LoggerContext context,
-                                            KafkaAppender<byte[]> delegate) {
+                                            KafkaAppender<ILoggingEvent> delegate) {
         AsyncAppender async = new AsyncAppender();
         async.setContext(context);
         async.setName("ASYNC_KAFKA");
@@ -165,4 +156,16 @@ public class KafkaAppenderConfig {
         async.addAppender(delegate);
         return async;
     }
+
+    private static final class RoundRobinKeyingStrategy implements KeyingStrategy<ILoggingEvent> {
+
+        private final AtomicInteger sequence = new AtomicInteger();
+
+        @Override
+        public byte[] createKey(ILoggingEvent event) {
+            return Integer.toString(sequence.getAndIncrement())
+                    .getBytes(StandardCharsets.UTF_8);
+        }
+    }
 }
+
