@@ -14,6 +14,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
 
 /**
  * Spring Boot auto-configuration entry point for the LogSpectra starter.
@@ -83,15 +84,23 @@ public class LogSpectraAutoConfiguration {
 
     /**
      * Programmatically attaches a Logback Kafka appender backed by the
-     * Logstash JSON encoder.
+     * Logstash JSON encoder to the root logger.
+     *
+     * <p>This guarantees Kafka JSON logging even if the consumer has their
+     * own {@code logback-spring.xml}. The programmatic setup is <em>additive</em>:
+     * it never removes or overrides consumer-defined appenders.
+     *
+     * <p>Respects {@code logspectra.kafka.enabled} property to allow consumers
+     * to disable Kafka shipping if needed.
      *
      * @param properties the bound LogSpectra configuration
      * @return a {@link KafkaAppenderConfig} that self-registers on {@code @PostConstruct}
      */
     @Bean
     @ConditionalOnMissingBean(KafkaAppenderConfig.class)
-    public KafkaAppenderConfig kafkaAppenderConfig(LogSpectraProperties properties) {
-        return new KafkaAppenderConfig(properties);
+    @ConditionalOnProperty(prefix = "logspectra.kafka", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public KafkaAppenderConfig kafkaAppenderConfig(LogSpectraProperties properties, Environment environment) {
+        return new KafkaAppenderConfig(properties, environment);
     }
 
     // ------------------------------------------------------------------ //

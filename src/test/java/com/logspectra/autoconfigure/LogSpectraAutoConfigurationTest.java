@@ -7,7 +7,7 @@ import com.logspectra.properties.LogSpectraProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.test.context.FilteredClassLoader;
+import org.springframework.boot.context.properties.bind.validation.BindValidationException;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LogSpectraAutoConfigurationTest {
 
     private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
+            .withPropertyValues("logspectra.project-id=test-project")
             .withConfiguration(AutoConfigurations.of(LogSpectraAutoConfiguration.class));
 
     // ------------------------------------------------------------------ //
@@ -75,5 +76,14 @@ class LogSpectraAutoConfigurationTest {
                 .withBean("customLoggingFilter", LoggingFilter.class,
                         () -> new LoggingFilter(new LogSpectraProperties()))
                 .run(ctx -> assertThat(ctx).hasSingleBean(LoggingFilter.class));
+    }
+
+    @Test
+    @DisplayName("should fail startup when project-id is missing")
+    void failsWhenProjectIdMissing() {
+        new WebApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(LogSpectraAutoConfiguration.class))
+                .run(ctx -> assertThat(ctx.getStartupFailure())
+                        .hasRootCauseInstanceOf(BindValidationException.class));
     }
 }

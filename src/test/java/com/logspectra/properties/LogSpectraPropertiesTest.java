@@ -16,6 +16,7 @@ class LogSpectraPropertiesTest {
         assertThat(props.isEnabled()).isTrue();
         assertThat(props.getServiceName()).isEqualTo("unknown-service");
         assertThat(props.getKafka()).isNotNull();
+        assertThat(props.getKafka().isEnabled()).isTrue();
         assertThat(props.getKafka().getBootstrapServers()).isEqualTo("localhost:9092");
         assertThat(props.getKafka().getTopic()).isEqualTo("application-logs");
         assertThat(props.getKafka().getAcks()).isEqualTo("1");
@@ -52,6 +53,51 @@ class LogSpectraPropertiesTest {
         props.setKafka(null);
 
         assertThat(props.getKafka()).isNotNull();
+        assertThat(props.getKafka().isEnabled()).isTrue();
         assertThat(props.getKafka().getTopic()).isEqualTo("application-logs");
+    }
+
+    @Test
+    @DisplayName("should allow toggling kafka.enabled")
+    void togglesKafkaEnabled() {
+        LogSpectraProperties props = new LogSpectraProperties();
+        props.getKafka().setEnabled(false);
+
+        assertThat(props.getKafka().isEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("should accept and store projectId")
+    void acceptsProjectId() {
+        LogSpectraProperties props = new LogSpectraProperties();
+        props.setProjectId("project-456");
+
+        assertThat(props.getProjectId()).isEqualTo("project-456");
+    }
+
+    @Test
+    @DisplayName("should default to null for projectId when not set")
+    void defaultProjectIdNull() {
+        LogSpectraProperties props = new LogSpectraProperties();
+
+        assertThat(props.getProjectId()).isNull();
+    }
+
+    @Test
+    @DisplayName("should trim projectId when set")
+    void trimsProjectId() {
+        LogSpectraProperties props = new LogSpectraProperties();
+        props.setProjectId("  project-789  ");
+
+        assertThat(props.getProjectId()).isEqualTo("project-789");
+    }
+
+    @Test
+    @DisplayName("blank projectId should be treated as missing")
+    void blankProjectIdBecomesNull() {
+        LogSpectraProperties props = new LogSpectraProperties();
+        props.setProjectId("   ");
+
+        assertThat(props.getProjectId()).isNull();
     }
 }

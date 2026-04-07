@@ -1,7 +1,9 @@
 package com.logspectra.properties;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
+import org.springframework.validation.annotation.Validated;
 
 /**
  * Configuration properties for the LogSpectra structured logging starter.
@@ -13,12 +15,14 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
  * logspectra:
  *   enabled: true
  *   service-name: user-service
+ *   project-id: project-123
  *   kafka:
  *     bootstrap-servers: localhost:9092
  *     topic: logs-topic
  * }</pre>
  */
 @ConfigurationProperties(prefix = "logspectra")
+@Validated
 public class LogSpectraProperties {
 
     /**
@@ -35,16 +39,29 @@ public class LogSpectraProperties {
     private String serviceName = "unknown-service";
 
     /**
+     * Project or tenant identifier. Injected into every log record as
+     * the {@code projectId} field. Required.
+     */
+    @NotBlank
+    private String projectId;
+
+    /**
      * Kafka-specific configuration block.
      */
     @NestedConfigurationProperty
     private Kafka kafka = new Kafka();
 
     // ------------------------------------------------------------------ //
-    //  Nested: Kafka                                                       //
+    //  Nested: Kafka                                                     //
     // ------------------------------------------------------------------ //
 
     public static class Kafka {
+
+        /**
+         * Kafka-only switch. Set to {@code false} to keep console JSON logging
+         * while disabling Kafka log shipping.
+         */
+        private boolean enabled = true;
 
         /**
          * Comma-separated list of Kafka broker addresses.
@@ -76,7 +93,13 @@ public class LogSpectraProperties {
          */
         private int retries = 3;
 
-        // Getters & Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
 
         public String getBootstrapServers() {
             return bootstrapServers;
@@ -123,10 +146,6 @@ public class LogSpectraProperties {
         }
     }
 
-    // ------------------------------------------------------------------ //
-    //  Root Getters & Setters                                             //
-    // ------------------------------------------------------------------ //
-
     public boolean isEnabled() {
         return enabled;
     }
@@ -143,6 +162,14 @@ public class LogSpectraProperties {
         this.serviceName = (serviceName != null && !serviceName.isBlank())
                 ? serviceName.trim()
                 : "unknown-service";
+    }
+
+    public String getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(String projectId) {
+        this.projectId = (projectId != null && !projectId.isBlank()) ? projectId.trim() : null;
     }
 
     public Kafka getKafka() {

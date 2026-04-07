@@ -6,15 +6,20 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.github.danielwegener.logback.kafka.KafkaAppender;
 import com.github.danielwegener.logback.kafka.delivery.AsynchronousDeliveryStrategy;
+import com.github.danielwegener.logback.kafka.keying.ThreadNameKeyingStrategy;
 import com.github.danielwegener.logback.kafka.keying.KeyingStrategy;
 import com.logspectra.properties.LogSpectraProperties;
 import net.logstash.logback.encoder.LogstashEncoder;
+import net.logstash.logback.fieldnames.LogstashCommonFieldNames;
+import net.logstash.logback.fieldnames.LogstashFieldNames;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -45,12 +50,14 @@ public class KafkaAppenderConfig {
     private static final int DISCARD_THRESHOLD = 20;
 
     private final LogSpectraProperties properties;
+    private final Environment environment;
 
     /** Held so we can stop the appender cleanly at shutdown. */
     private AsyncAppender asyncAppender;
 
-    public KafkaAppenderConfig(LogSpectraProperties properties) {
+    public KafkaAppenderConfig(LogSpectraProperties properties, Environment environment) {
         this.properties = properties;
+        this.environment = environment;
     }
 
     // ------------------------------------------------------------------ //
@@ -98,7 +105,7 @@ public class KafkaAppenderConfig {
         appender.setTopic(properties.getKafka().getTopic());
 
         // Keying strategy — round-robin distributes load evenly across partitions
-        KeyingStrategy<ILoggingEvent> keyingStrategy = new RoundRobinKeyingStrategy();
+        KeyingStrategy<ILoggingEvent> keyingStrategy = new ThreadNameKeyingStrategy();
         appender.setKeyingStrategy(keyingStrategy);
 
         // Delivery strategy — async so Kafka backpressure doesn't block callers
@@ -133,12 +140,24 @@ public class KafkaAppenderConfig {
     private LogstashEncoder buildEncoder(LoggerContext context) {
         LogstashEncoder encoder = new LogstashEncoder();
         encoder.setContext(context);
-        // Include MDC fields (service, endpoint, method, traceId) automatically
+
+        LogstashFieldNames fieldNames = new LogstashFieldNames();
+        fieldNames.setTimestamp("timestamp");
+        fieldNames.setThread("thread");
+        fieldNames.setLogger("logger");
+        fieldNames.setStackTrace("stackTrace");
+        fieldNames.setVersion(LogstashCommonFieldNames.IGNORE_FIELD_INDICATOR);
+        encoder.setFieldNames(fieldNames);
+
+        encoder.setCustomFields(buildCustomFieldsJson());
+
+        // Include request/tracing fields from MDC when present.
         encoder.setIncludeMdcKeyNames(java.util.List.of(
-                MdcKeys.SERVICE,
                 MdcKeys.ENDPOINT,
                 MdcKeys.METHOD,
-                MdcKeys.TRACE_ID));
+                MdcKeys.TRACE_ID,
+                MdcKeys.SPAN_ID,
+                MdcKeys.EXCEPTION));
         encoder.start();
         return encoder;
     }
@@ -157,15 +176,45 @@ public class KafkaAppenderConfig {
         return async;
     }
 
-    private static final class RoundRobinKeyingStrategy implements KeyingStrategy<ILoggingEvent> {
+    String buildCustomFieldsJson() {
+        return "{"
+                + "\"projectId\":\"" + escapeJson(properties.getProjectId()) + "\","
+                + "\"service\":\"" + escapeJson(properties.getServiceName()) + "\","
+                + "\"host\":\"" + escapeJson(resolveHost()) + "\","
+                + "\"environment\":\"" + escapeJson(resolveEnvironment()) + "\""
+                + "}";
+    }
 
-        private final AtomicInteger sequence = new AtomicInteger();
-
-        @Override
-        public byte[] createKey(ILoggingEvent event) {
-            return Integer.toString(sequence.getAndIncrement())
-                    .getBytes(StandardCharsets.UTF_8);
+    String resolveHost() {
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch (Exception ignored) {
+            return "unknown-host";
         }
     }
+
+    String resolveEnvironment() {
+        String[] activeProfiles = environment.getActiveProfiles();
+        if (activeProfiles == null || activeProfiles.length == 0) {
+            return "default";
+        }
+        return String.join(",", activeProfiles);
+    }
+
+    /**
+     * Escapes JSON special characters in a string.
+     */
+    private String escapeJson(String input) {
+        if (input == null) {
+            return "";
+        }
+        return input
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+    }
+
 }
 

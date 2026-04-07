@@ -113,6 +113,22 @@ class LoggingFilterTest {
         assertThat(MDC.get(MdcKeys.ENDPOINT)).isNull();
         assertThat(MDC.get(MdcKeys.METHOD)).isNull();
         assertThat(MDC.get(MdcKeys.TRACE_ID)).isNull();
+        assertThat(MDC.get(MdcKeys.SPAN_ID)).isNull();
+    }
+
+    @Test
+    @DisplayName("should propagate spanId from X-B3-SpanId header")
+    void shouldPropagateSpanIdFromHeader() throws Exception {
+        MockHttpServletRequest  request  = new MockHttpServletRequest("GET", "/api/users");
+        request.addHeader("X-B3-SpanId", "span-123");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        doAnswer(invocation -> {
+            assertThat(MDC.get(MdcKeys.SPAN_ID)).isEqualTo("span-123");
+            return null;
+        }).when(filterChain).doFilter(request, response);
+
+        filter.doFilter(request, response, filterChain);
     }
 
     @Test

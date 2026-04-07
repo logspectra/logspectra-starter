@@ -28,6 +28,12 @@ public final class MdcKeys {
      */
     public static final String TRACE_ID  = "traceId";
 
+    /** Distributed span identifier (from tracing system or incoming headers). */
+    public static final String SPAN_ID = "spanId";
+
+    /** Exception class captured at log time for structured error records. */
+    public static final String EXCEPTION = "exception";
+
     /** HTTP header name used to propagate/receive the trace identifier. */
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
 }

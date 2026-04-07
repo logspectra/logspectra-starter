@@ -101,6 +101,26 @@ public class LoggingFilter extends OncePerRequestFilter {
         MDC.put(MdcKeys.ENDPOINT,  request.getRequestURI());
         MDC.put(MdcKeys.METHOD,    request.getMethod());
         MDC.put(MdcKeys.TRACE_ID,  traceId);
+
+        String spanId = resolveSpanId(request);
+        if (spanId != null && !spanId.isBlank()) {
+            MDC.put(MdcKeys.SPAN_ID, spanId);
+        }
+    }
+
+    private String resolveSpanId(HttpServletRequest request) {
+        String b3SpanId = request.getHeader("X-B3-SpanId");
+        if (b3SpanId != null && !b3SpanId.isBlank()) {
+            return b3SpanId.trim();
+        }
+
+        String spanIdHeader = request.getHeader("X-Span-Id");
+        if (spanIdHeader != null && !spanIdHeader.isBlank()) {
+            return spanIdHeader.trim();
+        }
+
+        String existing = MDC.get(MdcKeys.SPAN_ID);
+        return (existing != null && !existing.isBlank()) ? existing : null;
     }
 
     /**
@@ -113,5 +133,6 @@ public class LoggingFilter extends OncePerRequestFilter {
         MDC.remove(MdcKeys.ENDPOINT);
         MDC.remove(MdcKeys.METHOD);
         MDC.remove(MdcKeys.TRACE_ID);
+        MDC.remove(MdcKeys.SPAN_ID);
     }
 }

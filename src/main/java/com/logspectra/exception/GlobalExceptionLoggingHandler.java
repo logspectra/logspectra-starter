@@ -63,17 +63,22 @@ public class GlobalExceptionLoggingHandler extends ResponseEntityExceptionHandle
         String endpoint  = MDC.get(MdcKeys.ENDPOINT);
         String method    = MDC.get(MdcKeys.METHOD);
 
-        // Structured error log — all MDC fields are automatically included
-        // in the JSON payload by logstash-logback-encoder.
-        log.error(
-            "Unhandled exception [traceId={}, service={}, {}: {}] — {}",
-            traceId,
-            service,
-            method,
-            endpoint,
-            ex.getMessage(),
-            ex
-        );
+        MDC.put(MdcKeys.EXCEPTION, ex.getClass().getName());
+        try {
+            // Structured error log — all MDC fields are automatically included
+            // in the JSON payload by logstash-logback-encoder.
+            log.error(
+                "Unhandled exception [traceId={}, service={}, {}: {}] — {}",
+                traceId,
+                service,
+                method,
+                endpoint,
+                ex.getMessage(),
+                ex
+            );
+        } finally {
+            MDC.remove(MdcKeys.EXCEPTION);
+        }
 
         Map<String, Object> body = buildErrorBody(ex, request, traceId);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);

@@ -15,7 +15,18 @@ logspectra:
   # Should match your service's identity in your service registry / APM tool.
   service-name: user-service
 
+  # Required: Project or tenant ID injected into every Kafka log record.
+  # The application will fail to start if this is missing or blank.
+  project-id: project-123
+
+  # Auto-derived from Spring active profiles.
+  # If no profile is active, LogSpectra writes "default".
+  # Example: dev,aws
+
   kafka:
+    # Kafka shipping switch. false keeps console JSON logs but skips Kafka publishing.
+    enabled: true
+
     # Comma-separated list of Kafka broker addresses.
     bootstrap-servers: localhost:9092
 
