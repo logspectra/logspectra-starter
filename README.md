@@ -103,4 +103,6 @@ Important: open an issue first and wait for maintainers to confirm scope before 
 
 ## License
 
-Add your project license here (for example: MIT or Apache-2.0).
+- Full text: `LICENSE`
+- Attribution notices: `NOTICE`
+This project is licensed under the Apache License 2.0.

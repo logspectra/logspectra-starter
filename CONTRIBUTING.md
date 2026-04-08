@@ -50,6 +50,12 @@ fix(logback): avoid duplicate kafka appender registration
 - Avoid forcing consumers to replace their local logging config unless necessary.
 - Preserve starter behavior when used as a dependency in other services.
 
+## Licensing for contributions
+
+By submitting a contribution, you agree your changes are provided under the Apache License 2.0 for this repository.
+
+If you add third-party code or assets, include proper attribution updates in `NOTICE` when required.
+
 ## Reporting security issues
 
 Please do not open public issues for sensitive vulnerabilities. Contact maintainers privately if security contact details are available.
