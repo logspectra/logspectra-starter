@@ -51,6 +51,18 @@ public class LogSpectraProperties {
     @NestedConfigurationProperty
     private Kafka kafka = new Kafka();
 
+    /**
+     * Codebase identity for AI analysis. Starter registers this with logspectra-backend on startup.
+     */
+    @NestedConfigurationProperty
+    private CodeSource codeSource = new CodeSource();
+
+    /**
+     * How the starter talks to logspectra-backend (service code registry).
+     */
+    @NestedConfigurationProperty
+    private Registry registry = new Registry();
+
     // ------------------------------------------------------------------ //
     //  Nested: Kafka                                                     //
     // ------------------------------------------------------------------ //
@@ -146,6 +158,102 @@ public class LogSpectraProperties {
         }
     }
 
+    // ------------------------------------------------------------------ //
+    //  Nested: CodeSource                                                //
+    // ------------------------------------------------------------------ //
+
+    public static class CodeSource {
+
+        /** Git repository URL for this service (preferred for code-aware analysis). */
+        private String gitUrl = "";
+
+        private String defaultBranch = "main";
+
+        /**
+         * Path to this service's sources as seen by logspectra-backend (same machine / shared volume).
+         * Optional when git clone is wired later.
+         */
+        private String localPath = "";
+
+        private java.util.List<String> sourceRoots = java.util.List.of("src/main/java", "src/main/kotlin");
+
+        public String getGitUrl() {
+            return gitUrl;
+        }
+
+        public void setGitUrl(String gitUrl) {
+            this.gitUrl = gitUrl != null ? gitUrl.trim() : "";
+        }
+
+        public String getDefaultBranch() {
+            return defaultBranch;
+        }
+
+        public void setDefaultBranch(String defaultBranch) {
+            this.defaultBranch = (defaultBranch != null && !defaultBranch.isBlank()) ? defaultBranch.trim() : "main";
+        }
+
+        public String getLocalPath() {
+            return localPath;
+        }
+
+        public void setLocalPath(String localPath) {
+            this.localPath = localPath != null ? localPath.trim() : "";
+        }
+
+        public java.util.List<String> getSourceRoots() {
+            return sourceRoots;
+        }
+
+        public void setSourceRoots(java.util.List<String> sourceRoots) {
+            this.sourceRoots = (sourceRoots != null && !sourceRoots.isEmpty())
+                ? sourceRoots
+                : java.util.List.of("src/main/java", "src/main/kotlin");
+        }
+
+        public boolean hasRegistrationPayload() {
+            return (gitUrl != null && !gitUrl.isBlank()) || (localPath != null && !localPath.isBlank());
+        }
+    }
+
+    public static class Registry {
+
+        /** Master switch for posting code-source metadata to the backend. */
+        private boolean enabled = true;
+
+        /** Base URL of logspectra-backend, e.g. http://localhost:8081 */
+        private String backendUrl = "http://localhost:8081";
+
+        /** Optional shared token; sent as X-LogSpectra-Registry-Token */
+        private String token = "";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getBackendUrl() {
+            return backendUrl;
+        }
+
+        public void setBackendUrl(String backendUrl) {
+            this.backendUrl = (backendUrl != null && !backendUrl.isBlank())
+                ? backendUrl.replaceAll("/+$", "")
+                : "http://localhost:8081";
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token != null ? token.trim() : "";
+        }
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -178,5 +286,21 @@ public class LogSpectraProperties {
 
     public void setKafka(Kafka kafka) {
         this.kafka = kafka != null ? kafka : new Kafka();
+    }
+
+    public CodeSource getCodeSource() {
+        return codeSource;
+    }
+
+    public void setCodeSource(CodeSource codeSource) {
+        this.codeSource = codeSource != null ? codeSource : new CodeSource();
+    }
+
+    public Registry getRegistry() {
+        return registry;
+    }
+
+    public void setRegistry(Registry registry) {
+        this.registry = registry != null ? registry : new Registry();
     }
 }
