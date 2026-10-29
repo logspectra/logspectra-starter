@@ -61,6 +61,18 @@ The starter is designed to emit these keys in Kafka JSON logs:
 - `host`
 - `environment`
 
+## Scheduled / background jobs
+
+HTTP requests get `endpoint` and `method` from `LoggingFilter`. For `@Scheduled` tasks or other non-HTTP code paths, wrap logging with:
+
+```java
+LogSpectraMdc.runWithRequestContext("/api/checkout", "GET", () -> {
+    log.error("checkout failed", ex);
+});
+```
+
+This keeps **Top affected endpoints** analytics accurate in LogSpectra (ERROR frequency grouped by `endpoint.keyword` in Elasticsearch).
+
 ## Build and test
 
 Prerequisite: Java 21 and Maven 3.9+.

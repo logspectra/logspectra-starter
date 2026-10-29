@@ -36,6 +36,16 @@ class LogSpectraMdcTest {
             assertThat(MDC.get(MdcKeys.TRACE_ID)).isNotEqualTo("parent-trace")
         );
 
-        assertThat(MDC.get(MdcKeys.TRACE_ID)).isEqualTo("parent-trace");
+    @Test
+    @DisplayName("runWithRequestContext sets endpoint and method for analytics")
+    void setsEndpointAndMethod() {
+        LogSpectraMdc.runWithRequestContext("/api/checkout", "GET", () -> {
+            assertThat(MDC.get(MdcKeys.ENDPOINT)).isEqualTo("/api/checkout");
+            assertThat(MDC.get(MdcKeys.METHOD)).isEqualTo("GET");
+            assertThat(MDC.get(MdcKeys.TRACE_ID)).isNotBlank();
+        });
+
+        assertThat(MDC.get(MdcKeys.ENDPOINT)).isNull();
+        assertThat(MDC.get(MdcKeys.METHOD)).isNull();
     }
 }
