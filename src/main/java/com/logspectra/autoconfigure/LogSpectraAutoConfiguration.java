@@ -4,6 +4,7 @@ import com.logspectra.config.KafkaAppenderConfig;
 import com.logspectra.exception.GlobalExceptionLoggingHandler;
 import com.logspectra.filter.LoggingFilter;
 import com.logspectra.properties.LogSpectraProperties;
+import com.logspectra.registry.ServiceCodeRegistryReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -120,5 +121,15 @@ public class LogSpectraAutoConfiguration {
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public GlobalExceptionLoggingHandler globalExceptionLoggingHandler() {
         return new GlobalExceptionLoggingHandler();
+    }
+
+    /**
+     * Registers this service's git URL / local path with logspectra-backend (Redis) on startup.
+     */
+    @Bean
+    @ConditionalOnMissingBean(ServiceCodeRegistryReporter.class)
+    @ConditionalOnProperty(prefix = "logspectra.registry", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public ServiceCodeRegistryReporter serviceCodeRegistryReporter(LogSpectraProperties properties) {
+        return new ServiceCodeRegistryReporter(properties);
     }
 }
