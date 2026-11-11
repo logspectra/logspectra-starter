@@ -36,6 +36,9 @@ class LogSpectraMdcTest {
             assertThat(MDC.get(MdcKeys.TRACE_ID)).isNotEqualTo("parent-trace")
         );
 
+        assertThat(MDC.get(MdcKeys.TRACE_ID)).isEqualTo("parent-trace");
+    }
+
     @Test
     @DisplayName("runWithRequestContext sets endpoint and method for analytics")
     void setsEndpointAndMethod() {
